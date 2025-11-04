@@ -55,46 +55,47 @@ def _read_local_any(parquet_path: Path) -> pd.DataFrame | None:
 
 def _read_remote_any(secret_key: str) -> pd.DataFrame | None:
     """
-    Charge un fichier distant depuis st.secrets[secret_key].
-    Stratégie:
-      1) pd.read_parquet(url) direct (pyarrow sait gérer HTTP)
-      2) requests.get + BytesIO + read_parquet
-      3) fallback CSV (si le lien pointe en réalité vers un CSV)
+    Charge un fichier distant depuis st.secrets[secret_key] via HTTP (requests),
+    puis lit en parquet depuis BytesIO ; fallback CSV si besoin.
     """
     url = st.secrets.get(secret_key)
     if not url or not isinstance(url, str):
         _log(f"Secret {secret_key} absent/invalid")
         return None
 
-    # 1) tentative directe
+    # 1) via requests (chemin prioritaire et plus fiable sur Cloud)
     try:
-        _log(f"[{secret_key}] read_parquet direct: {url}")
-        return pd.read_parquet(url)
+        _log(f"[{secret_key}] HTTP GET… {url}")
+        r = requests.get(url, timeout=600, allow_redirects=True)
+        r.raise_for_status()
+        bio = BytesIO(r.content)
+        try:
+            df = pd.read_parquet(bio)
+            _log(f"[{secret_key}] parquet OK (shape={getattr(df, 'shape', None)})")
+            return df
+        except Exception as e2:
+            _log(f"[{secret_key}] parquet via BytesIO failed: {e2}")
+            # 2) fallback CSV si jamais l’URL pointe vers un CSV
+            try:
+                df = pd.read_csv(StringIO(r.content.decode("utf-8")))
+                _log(f"[{secret_key}] CSV fallback OK (shape={getattr(df, 'shape', None)})")
+                return df
+            except Exception as e3:
+                _log(f"[{secret_key}] CSV fallback failed: {e3}")
+    except Exception as e:
+        _log(f"[{secret_key}] HTTP error: {e}")
+
+    # 3) (optionnel) tentative directe, en dernier recours
+    try:
+        _log(f"[{secret_key}] direct read_parquet (last resort)")
+        df = pd.read_parquet(url)
+        _log(f"[{secret_key}] parquet direct OK (shape={getattr(df, 'shape', None)})")
+        return df
     except Exception as e1:
         _log(f"[{secret_key}] direct read_parquet failed: {e1}")
 
-    # 2) via requests (si disponible)
-    if requests is not None:
-        try:
-            _log(f"[{secret_key}] GET via requests…")
-            r = requests.get(url, timeout=600, allow_redirects=True)
-            r.raise_for_status()
-            bio = BytesIO(r.content)
-            try:
-                return pd.read_parquet(bio)
-            except Exception as e2:
-                _log(f"[{secret_key}] parquet via BytesIO failed: {e2}")
-                # 3) fallback CSV
-                try:
-                    return pd.read_csv(StringIO(r.content.decode("utf-8")))
-                except Exception as e3:
-                    _log(f"[{secret_key}] CSV fallback failed: {e3}")
-        except Exception as e:
-            _log(f"[{secret_key}] HTTP error: {e}")
-    else:
-        _log("requests non disponible")
-
     return None
+
 
 # ---------- Loaders publics (cachés) ----------
 @st.cache_data(show_spinner=False)
