@@ -143,6 +143,15 @@ def set_custom_theme(theme="Clair"):
 # ---------------------------------------------------------------------------
 # Page Accueil
 # ---------------------------------------------------------------------------
+with st.expander("🔍 Debug secrets", expanded=True):
+    try:
+        st.write("Clés présentes dans st.secrets :", list(st.secrets.keys()))
+        for k in ["RECIPES_CLEAN_URL","INTERACTIONS_CLEAN_URL","RECIPES_RAW_URL","INTERACTIONS_RAW_URL","MERGED_CLEAN_URL"]:
+            st.write(k, "→", ("OK" if k in st.secrets and isinstance(st.secrets[k], str) and st.secrets[k].startswith("http") else "ABSENT/INVALIDE"))
+    except Exception as e:
+        st.write("Impossible de lire st.secrets ici :", e)
+
+
 def show_home_page():
     recipes_df = get_ds()["clean_recipes"]
     raw_interactions = get_ds()["raw_interactions"]
