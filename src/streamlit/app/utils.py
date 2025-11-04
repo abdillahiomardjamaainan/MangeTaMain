@@ -1,5 +1,4 @@
 from pathlib import Path
-import sys, inspect
 import streamlit as st
 import pandas as pd
 import yaml
@@ -52,7 +51,7 @@ def get_ds():
 
     return ds
 
-# -------- Rendu de visualisations --------
+# --------- (Facultatif) commentaires / rendu des viz ---------
 def load_commentary_yaml():
     p = Path(__file__).parent / "comment.yaml"
     if not p.exists():

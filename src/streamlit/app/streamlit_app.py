@@ -1,6 +1,6 @@
 """Application Streamlit principale (plots + textes explicatifs)."""
 
-# --- Bootstrap import src ---
+# --- Bootstrap import src (doit rester tout en haut) ---
 import sys
 from pathlib import Path
 _THIS = Path(__file__).resolve()
@@ -10,7 +10,7 @@ for p in [_THIS, *_THIS.parents]:
             if a not in sys.path:
                 sys.path.insert(0, a)
         break
-# ----------------------------
+# -------------------------------------------------------
 
 import streamlit as st
 import pandas as pd
@@ -28,7 +28,7 @@ except Exception as e:
     print(f"Warning: Could not initialize logging: {e}")
     logger = None
 
-# Visualisation imports
+# Imports visualisation
 try:
     from src.data_visualization import (
         rating_distribution,
@@ -115,9 +115,9 @@ def set_custom_theme(theme="Clair"):
     )
 
 
-# ------------------- Accueil -------------------
+# ------------------- Page Accueil -------------------
 def show_home_page():
-    # Debug (replié par défaut)
+    # Debug secrets (replié)
     with st.expander("🔍 Debug secrets", expanded=False):
         try:
             st.write("Clés présentes :", list(st.secrets.keys()))
@@ -130,13 +130,13 @@ def show_home_page():
         except Exception as e:
             st.write("Impossible de lire st.secrets :", e)
 
-    # >>> NE PAS SORTIR CES LIGNES DE LA FONCTION <<<
+    # >>> Tout doit rester DANS la fonction <<<
     ds = get_ds()
     recipes_df = ds.get("clean_recipes")
     raw_interactions = ds.get("raw_interactions")
 
     if recipes_df is None or raw_interactions is None:
-        st.error("⚠️ Données indisponibles. Vérifie les secrets (URLs Hugging Face) et relance.")
+        st.error("⚠️ Données indisponibles. Vérifie les secrets (URLs Hugging Face) dans Streamlit Cloud et relance.")
         st.stop()
 
     st.markdown("## INTRODUCTION")
@@ -153,23 +153,22 @@ def show_home_page():
         - **Data cleaning** (structure, NA, outliers)  
         - **Analyse univariée** (distributions, corrélations)  
         - **Analyse bivariée** (facteurs d'insatisfaction)  
-        - **Conclusion**"""
+        - **Conclusion**
+        """
     )
 
     st.markdown("### Navigation rapide")
     c1, c2 = st.columns(2)
     with c1:
         if st.button("📊 Aller à la page data cleaning"):
-            _set_page_by_key("data")
-            _safe_rerun()
+            _set_page_by_key("data"); _safe_rerun()
     with c2:
         if st.button("📈 Aller aux Visualisations"):
-            _set_page_by_key("viz")
-            _safe_rerun()
+            _set_page_by_key("viz"); _safe_rerun()
 
 
 PAGES_ORDER = [
-    ("🏠 Accueil", "home", show_home_page),
+    ("🏠 Accueil", "home", show_home_page),              # <— passe la fonction, ne l'appelle pas
     ("📊 Données cleaning", "data", show_data_page),
     ("📈 Visualisations", "viz", show_visualizations),
     ("📝 Conclusion", "conclusion", show_conclusion_page),
