@@ -9,49 +9,23 @@ try:
 except Exception:
     logger = None
 
-from src.data_loader import (
-    load_recipes_data,
-    load_interactions_data,
-    load_clean_recipes,
-    load_clean_interactions,
-    load_clean_merged,
-)
-
+# --------- Ultra-lazy store (rien au boot) ----------
 def get_ds():
     """
-    ⚠️ Ne charge que les datasets légers au démarrage.
-    Les GROS (clean_interactions ~1.1M lignes, merged) seront chargés à la demande.
+    Ultra-lazy: ne PRÉCHARGE rien au démarrage.
+    Tous les datasets restent à None et seront chargés par des boutons dans les pages.
     """
     if "ds" in st.session_state:
         return st.session_state["ds"]
 
-    if logger: logger.info("Loading datasets via data_loader (light only)")
-    ds = {}
-
-    def _safe(name, fn):
-        try:
-            df = fn()
-            if logger:
-                shape = getattr(df, "shape", None)
-                logger.debug(f"Loaded '{name}': {shape}")
-            return df
-        except Exception as e:
-            msg = f"[utils.get_ds] WARN: '{name}' not loaded: {e}"
-            print(msg)
-            if logger: logger.warning(msg)
-            return None
-
-    # LÉGERS
-    ds["raw_recipes"]      = _safe("raw_recipes", load_recipes_data)
-    ds["raw_interactions"] = _safe("raw_interactions", load_interactions_data)
-    ds["clean_recipes"]    = _safe("clean_recipes", load_clean_recipes)
-
-    # GROS — lazy (chargés par boutons dans les pages)
-    ds["clean_interactions"] = None
-    ds["merged"]             = None
-
-    st.session_state["ds"] = ds
-    return ds
+    st.session_state["ds"] = {
+        "raw_recipes": None,
+        "raw_interactions": None,
+        "clean_recipes": None,
+        "clean_interactions": None,
+        "merged": None,
+    }
+    return st.session_state["ds"]
 
 # --- commentaires facultatifs pour les viz
 def _load_commentary_yaml():
@@ -123,3 +97,37 @@ def _safe_rerun():
         st.rerun()
     elif hasattr(st, "experimental_rerun"):
         st.experimental_rerun()
+
+# --- Sampling utils ----------------------------------------------------------
+def get_sample(df, n: int, seed: int):
+    """Retourne un échantillon de n lignes (ou moins si n > len(df)).
+    Si df est None, retourne None."""
+    if df is None:
+        return None
+    n = int(max(1, min(n, len(df))))
+    if n >= len(df):
+        return df
+    return df.sample(n, random_state=seed)
+
+def sample_controls(key_prefix: str, default_n: int = 50_000, max_n: int | None = None):
+    """Panneau Streamlit pour choisir taille d'échantillon + resampler.
+    Renvoie (sample_size, seed, asked_rerun: bool)"""
+    if "sample_seed" not in st.session_state:
+        st.session_state.sample_seed = 0
+
+    max_n = max_n or 200_000
+
+    with st.expander("⚙️ Contrôles d'échantillonnage", expanded=False):
+        col1, col2, col3 = st.columns([2,2,1])
+        with col1:
+            n = st.slider("Taille d'échantillon", 1_000, max_n, value=default_n, step=1_000, key=f"{key_prefix}_n")
+        with col2:
+            st.caption(f"Seed actuel : {st.session_state.sample_seed}")
+        with col3:
+            resample = st.button("🎲 Nouveau tirage", key=f"{key_prefix}_resample")
+
+        if resample:
+            st.session_state.sample_seed += 1
+            _safe_rerun()
+
+    return st.session_state.get(f"{key_prefix}_n", default_n), st.session_state.sample_seed, False

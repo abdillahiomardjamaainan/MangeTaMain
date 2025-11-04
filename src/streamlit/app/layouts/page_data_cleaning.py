@@ -19,17 +19,17 @@ except Exception as e:
     DV_ERR = e
 
 def show_data_page():
-    st.markdown("## 📊 Données cleaning")
+    st.markdown("## 📊 Data cleaning")
 
     ds = get_ds()
     df_raw_interactions = ds.get("raw_interactions")
     df_raw_recipes      = ds.get("raw_recipes")
 
     if df_raw_interactions is None or df_raw_recipes is None:
-        st.error("⚠️ Données RAW manquantes. Vérifie tes secrets/URLs.")
+        st.info("Charge d’abord les datasets RAW via la sidebar (boutons).")
         st.stop()
 
-    # Exemple: calculs sur interactions
+    # Missing (interactions)
     missing_interactions = detect_missing_values(df_raw_interactions)
     missing_df = (
         missing_interactions[missing_interactions > 0]
@@ -41,14 +41,19 @@ def show_data_page():
         if missing_df.empty:
             st.success("Aucune valeur manquante dans interactions.")
         else:
-            st.dataframe(missing_df)
+            st.dataframe(missing_df, width="stretch")
 
     # Binary sentiment
-    df_raw_interactions["binary_sentiment"] = df_raw_interactions["rating"].apply(
-        lambda x: 1 if x in [1, 2, 3] else 0
-    )
+    df_raw_interactions = df_raw_interactions.copy()
+    if "rating" in df_raw_interactions.columns:
+        df_raw_interactions["binary_sentiment"] = df_raw_interactions["rating"].apply(
+            lambda x: 1 if x in [1, 2, 3] else 0
+        )
     st.dataframe(df_raw_interactions.head(5), width="stretch")
 
     # Recipes — viz boxplots
-    render_viz("Boxplots minutes / n_ingredients / n_steps",
-               plot_minutes_ningredients_nsteps, df_raw_recipes)
+    render_viz(
+        "Boxplots minutes / n_ingredients / n_steps",
+        plot_minutes_ningredients_nsteps,
+        df_raw_recipes
+    )
