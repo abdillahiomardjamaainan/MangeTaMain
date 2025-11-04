@@ -1,9 +1,8 @@
 """Application Streamlit principale (plots + textes explicatifs)."""
 
-# --- Bootstrap pour que "from src..." fonctionne partout (doit être tout en haut) ---
+# --- Bootstrap import src ---
 import sys
 from pathlib import Path
-
 _THIS = Path(__file__).resolve()
 for p in [_THIS, *_THIS.parents]:
     if (p / "pyproject.toml").exists():
@@ -11,7 +10,7 @@ for p in [_THIS, *_THIS.parents]:
             if a not in sys.path:
                 sys.path.insert(0, a)
         break
-# ------------------------------------------------------------------------------------
+# ----------------------------
 
 import streamlit as st
 import pandas as pd
@@ -20,7 +19,7 @@ import yaml
 
 from src.ensure_data import ensure_data
 
-# Initialize logging
+# Logging
 try:
     from src.logging_config import get_logger
     logger = get_logger("mangetamain.streamlit")
@@ -29,9 +28,7 @@ except Exception as e:
     print(f"Warning: Could not initialize logging: {e}")
     logger = None
 
-# ---------------------------------------------------------------------------
-# Imports visualisation
-# ---------------------------------------------------------------------------
+# Visualisation imports
 try:
     from src.data_visualization import (
         rating_distribution,
@@ -77,9 +74,8 @@ from src.streamlit.app.layouts.page_data_cleaning import show_data_page
 from src.streamlit.app.layouts.page_visualisation import show_visualizations
 from src.streamlit.app.layouts.page_conclusion import show_conclusion_page
 
-# ---------------------------------------------------------------------------
-# Thème
-# ---------------------------------------------------------------------------
+
+# ---------------------- Thème ----------------------
 def set_custom_theme(theme="Clair"):
     if theme == "Sombre":
         colors = {
@@ -103,26 +99,25 @@ def set_custom_theme(theme="Clair"):
         }
     st.markdown(
         f"""
-    <style>
-    .stApp {{background:{colors['background']}; color:{colors['text']};}}
-    .main-header {{background:{colors['header_gradient']}; padding:1.4rem; border-radius:14px;
-                   color:{colors['button_text']} !important; text-align:center; margin-bottom:1.0rem;}}
-    [data-testid="stSidebar"] {{background:{colors['sidebar_gradient']};}}
-    [data-testid="stSidebar"] * {{color:#ffffff !important;}}
-    .stButton>button {{
-        background:{colors['header_gradient']}; color:{colors['button_text']} !important;
-        border:none; border-radius:24px; padding:0.55rem 1.3rem; font-weight:600;
-    }}
-    </style>
-    """,
+        <style>
+        .stApp {{background:{colors['background']}; color:{colors['text']};}}
+        .main-header {{background:{colors['header_gradient']}; padding:1.4rem; border-radius:14px;
+                       color:{colors['button_text']} !important; text-align:center; margin-bottom:1.0rem;}}
+        [data-testid="stSidebar"] {{background:{colors['sidebar_gradient']};}}
+        [data-testid="stSidebar"] * {{color:#ffffff !important;}}
+        .stButton>button {{
+            background:{colors['header_gradient']}; color:{colors['button_text']} !important;
+            border:none; border-radius:24px; padding:0.55rem 1.3rem; font-weight:600;
+        }}
+        </style>
+        """,
         unsafe_allow_html=True,
     )
 
-# ---------------------------------------------------------------------------
-# Page Accueil
-# ---------------------------------------------------------------------------
+
+# ------------------- Accueil -------------------
 def show_home_page():
-    # Debug secrets (Cloud)
+    # Debug (replié par défaut)
     with st.expander("🔍 Debug secrets", expanded=False):
         try:
             st.write("Clés présentes :", list(st.secrets.keys()))
@@ -135,36 +130,32 @@ def show_home_page():
         except Exception as e:
             st.write("Impossible de lire st.secrets :", e)
 
+    # >>> NE PAS SORTIR CES LIGNES DE LA FONCTION <<<
     ds = get_ds()
     recipes_df = ds.get("clean_recipes")
     raw_interactions = ds.get("raw_interactions")
 
     if recipes_df is None or raw_interactions is None:
-        st.error("⚠️ Données indisponibles. Vérifie les secrets (URLs Hugging Face) dans Streamlit Cloud et relance.")
+        st.error("⚠️ Données indisponibles. Vérifie les secrets (URLs Hugging Face) et relance.")
         st.stop()
 
     st.markdown("## INTRODUCTION")
     st.markdown(
-        """Notre équipe composé de Guy, Mohamed, Leonnel, Omar et Osman avons décidé de travailler sur le projet MangeTaMain sur la problématique 
-        du **taux d'insatisfaction des recettes** en nous basant sur 2 tables : les recettes et les interactions utilisateurs (notes, avis).
-        Voici un aperçu de la table recette :
-        """
+        """Notre équipe (Guy, Mohamed, Leonnel, Omar, Osman) analyse le **taux d'insatisfaction** 
+        à partir des recettes et des interactions (notes/avis). Voici un aperçu :"""
     )
     st.dataframe(recipes_df.head(5), use_container_width=True)
-
-    st.markdown("et voici un aperçu de la table interactions :")
+    st.markdown("Aperçu des interactions :")
     st.dataframe(raw_interactions.head(5), use_container_width=True)
 
     st.markdown(
-        """Le travail se décline en plusieurs étapes :  
-        - **data_cleaning** : structure, types, valeurs manquantes, aberrantes, etc.  
-        - **Analyse univariée** : tendances, distributions, corrélations, etc.  
-        - **Analyse bivariée** : relations entre variables et facteurs d'insatisfaction.  
-        - **Ouverture** : Conclusion et pistes pour la suite.
-        """
+        """Étapes :  
+        - **Data cleaning** (structure, NA, outliers)  
+        - **Analyse univariée** (distributions, corrélations)  
+        - **Analyse bivariée** (facteurs d'insatisfaction)  
+        - **Conclusion**"""
     )
 
-    # Boutons navigation rapides
     st.markdown("### Navigation rapide")
     c1, c2 = st.columns(2)
     with c1:
@@ -176,6 +167,7 @@ def show_home_page():
             _set_page_by_key("viz")
             _safe_rerun()
 
+
 PAGES_ORDER = [
     ("🏠 Accueil", "home", show_home_page),
     ("📊 Données cleaning", "data", show_data_page),
@@ -183,12 +175,15 @@ PAGES_ORDER = [
     ("📝 Conclusion", "conclusion", show_conclusion_page),
 ]
 
+
 def _init_page_state():
     if "current_page_idx" not in st.session_state:
         st.session_state.current_page_idx = 0
 
+
 def _go_delta(delta: int):
     st.session_state.current_page_idx = (st.session_state.current_page_idx + delta) % len(PAGES_ORDER)
+
 
 def _set_page_by_key(page_key: str):
     for i, (_, key, _) in enumerate(PAGES_ORDER):
@@ -196,9 +191,8 @@ def _set_page_by_key(page_key: str):
             st.session_state.current_page_idx = i
             break
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
+
+# --------------------- Main ---------------------
 def main():
     if logger:
         logger.info("Initializing Streamlit application main interface")
@@ -214,35 +208,30 @@ def main():
         st.session_state.theme = "Clair"
     set_custom_theme(st.session_state.theme)
 
-    # (log datasets charge)
+    # Log du chargement datasets
     try:
-        ds = get_ds()
+        _ds = get_ds()
         if logger:
             logger.info("Successfully loaded datasets for main interface")
-            for key, df in ds.items():
-                if df is not None:
-                    logger.debug(f"Dataset '{key}': {getattr(df, 'shape', None)}")
-                else:
-                    logger.warning(f"Dataset '{key}' is None")
+            for key, df in _ds.items():
+                logger.debug(f"Dataset '{key}': {getattr(df, 'shape', None) if df is not None else None}")
     except Exception as e:
         if logger:
             logger.error(f"Error loading datasets in main: {str(e)}")
         st.error("Erreur lors du chargement des données")
         return
 
-    # Barre supérieure avec chevrons
-    top_left, top_center, top_right = st.columns([0.7, 5, 0.7])
-    with top_left:
+    # Bandeau navigation
+    left, center, right = st.columns([0.7, 5, 0.7])
+    with left:
         if st.button("◀"):
-            _go_delta(-1)
-            _safe_rerun()
-    with top_center:
+            _go_delta(-1); _safe_rerun()
+    with center:
         label, key, _ = PAGES_ORDER[st.session_state.current_page_idx]
         st.markdown(f"<h2 style='text-align:center'>{label}</h2>", unsafe_allow_html=True)
-    with top_right:
+    with right:
         if st.button("▶"):
-            _go_delta(1)
-            _safe_rerun()
+            _go_delta(1); _safe_rerun()
 
     with st.sidebar:
         st.markdown("### Pages")
@@ -264,16 +253,17 @@ def main():
 
     st.markdown(
         """
-    <div class="main-header">
-      <h1>🍽️ MangeTaMain</h1>
-      <p>Analyse des recettes et interactions (plots & explications)</p>
-    </div>
-    """,
+        <div class="main-header">
+          <h1>🍽️ MangeTaMain</h1>
+          <p>Analyse des recettes et interactions (plots & explications)</p>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
     _, _, render = PAGES_ORDER[st.session_state.current_page_idx]
     render()
+
 
 if __name__ == "__main__":
     main()

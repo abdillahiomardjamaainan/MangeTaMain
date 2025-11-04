@@ -12,9 +12,7 @@ except Exception as e:
     print(f"Warning: Could not initialize logging in utils: {e}")
     logger = None
 
-# ---------------------------------------------------------------------------
-# CHARGEMENT DES DONNÉES — via data_loader (local -> sinon URL via st.secrets)
-# ---------------------------------------------------------------------------
+# -------- Chargement via data_loader (local -> sinon URL via st.secrets) --------
 from src.data_loader import (
     load_recipes_data,
     load_interactions_data,
@@ -26,7 +24,7 @@ from src.data_loader import (
 def get_ds():
     """
     Charge tous les datasets via data_loader (local -> sinon URL via st.secrets/env).
-    Retourne un dict avec des DataFrames ou None en cas d'erreur.
+    Retourne un dict {name: DataFrame|None}.
     """
     if logger:
         logger.info("Loading all datasets for Streamlit application")
@@ -54,9 +52,7 @@ def get_ds():
 
     return ds
 
-# ---------------------------------------------------------------------------
-# Textes explicatifs (si tu utilises les docstrings / YAML)
-# ---------------------------------------------------------------------------
+# -------- Rendu de visualisations --------
 def load_commentary_yaml():
     p = Path(__file__).parent / "comment.yaml"
     if not p.exists():
@@ -67,15 +63,12 @@ def load_commentary_yaml():
         return {}
 
 EXTERNAL_COMMENTS = load_commentary_yaml()
-MD_MAP = {}  # tu peux laisser vide si déjà géré ailleurs
+MD_MAP = {}
+
+FAST_MODE = st.session_state.get("FAST_MODE", False)
 
 def get_comment(func_name: str) -> str:
     return EXTERNAL_COMMENTS.get(func_name) or MD_MAP.get(func_name)
-
-# ---------------------------------------------------------------------------
-# Wrapper rendu (figure + doc + texte)
-# ---------------------------------------------------------------------------
-FAST_MODE = st.session_state.get("FAST_MODE", False)
 
 def render_viz(
     label,
@@ -104,7 +97,8 @@ def render_viz(
             st.pyplot(fig, use_container_width=True)
 
             if show_doc:
-                doc = inspect.getdoc(func)
+                import inspect as _inspect
+                doc = _inspect.getdoc(func)
                 comment = get_comment(func.__name__)
                 if doc or comment:
                     if doc:
