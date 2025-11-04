@@ -92,7 +92,7 @@ except Exception as e:
     DV_ERR = e
 
 
-from src.streamlit.app.utils import _ensure_src_on_path, get_ds, render_viz, _safe_rerun
+from src.streamlit.app.utils import get_ds, render_viz, _safe_rerun,get_ds
 from src.streamlit.app.layouts.page_data_cleaning import show_data_page
 from src.streamlit.app.layouts.page_visualisation import show_visualizations
 from src.streamlit.app.layouts.page_conclusion import show_conclusion_page
@@ -153,8 +153,14 @@ with st.expander("🔍 Debug secrets", expanded=True):
 
 
 def show_home_page():
-    recipes_df = get_ds()["clean_recipes"]
-    raw_interactions = get_ds()["raw_interactions"]
+   ds = get_ds()
+recipes_df = ds.get("clean_recipes")
+raw_interactions = ds.get("raw_interactions")
+
+if recipes_df is None or raw_interactions is None:
+    st.error("⚠️ Données indisponibles. Vérifie les secrets (URLs Hugging Face) dans Streamlit Cloud et relance.")
+    st.stop()
+
 
     st.markdown("## INTRODUCTION")
     st.markdown(
