@@ -10,10 +10,10 @@ try:
 except Exception:
     requests = None
 
-# Logging (optionnel)
+# Logging
 try:
     from src.logging_config import get_logger
-    logger = get_logger("data_loader")
+    logger = get_logger("mangetamain.data_loader")
 except Exception:
     logger = None
 
@@ -21,7 +21,7 @@ def _log(msg: str):
     if logger:
         logger.info(msg)
 
-# --- Chemins locaux (prioritaires s'ils existent) ---
+# --- Chemins locaux (si présents, prioritaires) ---
 DATA_DIR = Path(__file__).parent.parent / "data"
 RAW_DIR = DATA_DIR / "raw"
 PROCESSED_DIR = DATA_DIR / "processed"
@@ -32,7 +32,7 @@ CLEAN_RECIPES_LOCAL      = PROCESSED_DIR / "recipes_cleaned.parquet"
 CLEAN_INTERACTIONS_LOCAL = PROCESSED_DIR / "interactions_cleaned.parquet"
 CLEAN_MERGED_LOCAL       = PROCESSED_DIR / "merged_cleaned.parquet"
 
-# Clés secrets Hugging Face
+# Clés secrets HF → URLs
 SECRET_KEYS = {
     "raw_recipes":        "RECIPES_RAW_URL",
     "raw_interactions":   "INTERACTIONS_RAW_URL",
@@ -42,7 +42,7 @@ SECRET_KEYS = {
 }
 
 def _read_local_any(parquet_path: Path) -> pd.DataFrame | None:
-    """Essaie parquet, sinon CSV avec le même nom."""
+    """Essaie parquet puis CSV avec le même nom si dispo."""
     try:
         if parquet_path.exists():
             return pd.read_parquet(parquet_path)
@@ -55,15 +55,18 @@ def _read_local_any(parquet_path: Path) -> pd.DataFrame | None:
 
 def _read_remote_any(secret_key: str) -> pd.DataFrame | None:
     """
-    Charge un fichier distant depuis st.secrets[secret_key] via HTTP (requests),
-    puis lit en parquet depuis BytesIO ; fallback CSV si besoin.
+    Charge un fichier distant depuis st.secrets[secret_key].
+    Stratégie:
+      1) HTTP GET (requests) → BytesIO → parquet
+      2) fallback CSV si besoin
+      3) (dernier recours) pd.read_parquet(url) direct
     """
     url = st.secrets.get(secret_key)
     if not url or not isinstance(url, str):
         _log(f"Secret {secret_key} absent/invalid")
         return None
 
-    # 1) via requests (chemin prioritaire et plus fiable sur Cloud)
+    # 1) via requests
     try:
         _log(f"[{secret_key}] HTTP GET… {url}")
         r = requests.get(url, timeout=600, allow_redirects=True)
@@ -75,7 +78,6 @@ def _read_remote_any(secret_key: str) -> pd.DataFrame | None:
             return df
         except Exception as e2:
             _log(f"[{secret_key}] parquet via BytesIO failed: {e2}")
-            # 2) fallback CSV si jamais l’URL pointe vers un CSV
             try:
                 df = pd.read_csv(StringIO(r.content.decode("utf-8")))
                 _log(f"[{secret_key}] CSV fallback OK (shape={getattr(df, 'shape', None)})")
@@ -85,7 +87,7 @@ def _read_remote_any(secret_key: str) -> pd.DataFrame | None:
     except Exception as e:
         _log(f"[{secret_key}] HTTP error: {e}")
 
-    # 3) (optionnel) tentative directe, en dernier recours
+    # 3) dernier recours
     try:
         _log(f"[{secret_key}] direct read_parquet (last resort)")
         df = pd.read_parquet(url)
@@ -96,8 +98,7 @@ def _read_remote_any(secret_key: str) -> pd.DataFrame | None:
 
     return None
 
-
-# ---------- Loaders publics (cachés) ----------
+# ---------- Loaders publics (cachés + cache streamlit) ----------
 @st.cache_data(show_spinner=False)
 def load_recipes_data() -> pd.DataFrame | None:
     df = _read_local_any(RAW_RECIPES_LOCAL)

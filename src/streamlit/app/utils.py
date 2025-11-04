@@ -1,15 +1,14 @@
+# src/streamlit/app/utils.py
 from pathlib import Path
 import streamlit as st
 import yaml
 
-# Logging
 try:
     from src.logging_config import get_logger
     logger = get_logger('mangetamain.streamlit.utils')
 except Exception:
     logger = None
 
-# -------- Chargement via data_loader (local -> sinon URL via st.secrets) --------
 from src.data_loader import (
     load_recipes_data,
     load_interactions_data,
@@ -20,13 +19,13 @@ from src.data_loader import (
 
 def get_ds():
     """
-    Charge tous les datasets via data_loader (local -> sinon URL via st.secrets/env).
-    Retourne un dict {name: DataFrame|None}. Stocké une fois dans st.session_state["ds"].
+    ⚠️ Ne charge que les datasets légers au démarrage.
+    Les GROS (clean_interactions ~1.1M lignes, merged) seront chargés à la demande.
     """
     if "ds" in st.session_state:
         return st.session_state["ds"]
 
-    if logger: logger.info("Loading datasets via data_loader")
+    if logger: logger.info("Loading datasets via data_loader (light only)")
     ds = {}
 
     def _safe(name, fn):
@@ -42,17 +41,19 @@ def get_ds():
             if logger: logger.warning(msg)
             return None
 
-    ds["raw_recipes"]        = _safe("raw_recipes", load_recipes_data)
-    ds["raw_interactions"]   = _safe("raw_interactions", load_interactions_data)
-    ds["clean_recipes"]      = _safe("clean_recipes", load_clean_recipes)
-    ds["clean_interactions"] = _safe("clean_interactions", load_clean_interactions)
-    ds["merged"]             = _safe("merged", load_clean_merged)
+    # LÉGERS
+    ds["raw_recipes"]      = _safe("raw_recipes", load_recipes_data)
+    ds["raw_interactions"] = _safe("raw_interactions", load_interactions_data)
+    ds["clean_recipes"]    = _safe("clean_recipes", load_clean_recipes)
+
+    # GROS — lazy (chargés par boutons dans les pages)
+    ds["clean_interactions"] = None
+    ds["merged"]             = None
 
     st.session_state["ds"] = ds
     return ds
 
-
-# --------- (facultatif) commentaires pour les viz ---------
+# --- commentaires facultatifs pour les viz
 def _load_commentary_yaml():
     p = Path(__file__).parent / "comment.yaml"
     if not p.exists():
@@ -63,13 +64,12 @@ def _load_commentary_yaml():
         return {}
 
 _EXPLANATIONS = _load_commentary_yaml()
-_MD_MAP = {}  # tu peux ajouter des textes par défaut ici
+_MD_MAP = {}
 
 def _get_comment(func_name: str) -> str:
     return _EXPLANATIONS.get(func_name) or _MD_MAP.get(func_name)
 
-
-# --------- Rendu standardisé des visualisations ---------
+# --- Rendu standard des viz
 def render_viz(
     label,
     func,
@@ -79,12 +79,6 @@ def render_viz(
     sample_if_fast: int | None = None,
     **kwargs,
 ):
-    """
-    Affiche une visualisation en appelant `func(df, return_fig=True, **kwargs)`.
-    - Si df est None → warning.
-    - Si st.session_state['FAST_MODE'] et sample_if_fast → échantillonne.
-    - Affiche docstring + commentaire s'ils existent.
-    """
     if df is None:
         st.warning(f"{label}: dataset manquant")
         if logger:
@@ -123,7 +117,6 @@ def render_viz(
             st.error(f"Erreur: {e}")
             if logger:
                 logger.error(f"Error rendering '{label}' with {func.__name__}: {e}")
-
 
 def _safe_rerun():
     if hasattr(st, "rerun"):
