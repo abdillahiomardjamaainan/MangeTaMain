@@ -1,6 +1,6 @@
-"""Application Streamlit principale (plots + textes explicatifs)."""
+"""Application Streamlit minimale fiable (Accueil + navigation)."""
 
-# --- Bootstrap import src (doit rester tout en haut) ---
+# --- Bootstrap pour autoriser "from src..." partout ---
 import sys
 from pathlib import Path
 _THIS = Path(__file__).resolve()
@@ -10,12 +10,9 @@ for p in [_THIS, *_THIS.parents]:
             if a not in sys.path:
                 sys.path.insert(0, a)
         break
-# -------------------------------------------------------
+# ------------------------------------------------------
 
 import streamlit as st
-import pandas as pd
-import numpy as np
-import yaml
 
 from src.ensure_data import ensure_data
 
@@ -23,166 +20,79 @@ from src.ensure_data import ensure_data
 try:
     from src.logging_config import get_logger
     logger = get_logger("mangetamain.streamlit")
-    logger.info("Starting MangeTaMain Streamlit application")
-except Exception as e:
-    print(f"Warning: Could not initialize logging: {e}")
+except Exception:
     logger = None
 
-# Imports visualisation
-try:
-    from src.data_visualization import (
-        rating_distribution,
-        recipe_mean_rating_distribution,
-        top_users_by_activity,
-        user_mean_rating_distribution,
-        user_count_vs_mean_rating,
-        activity_bucket_bar,
-        analyze_contributors,
-        statistique_descriptive,
-        plot_prep_time_distribution,
-        plot_ingredient,
-        plot_n_steps_distribution,
-        analyse_tags,
-        plot_tags_distribution,
-        plot_nutrition_distribution,
-        analyze_ingredients_vectorized,
-        minutes_group_negative_reviews_bar,
-        spearman_correlation,
-        plot_ingredients_vs_negative_score,
-        analyze_tags_correlation,
-        nutrition_correlation_analysis,
-        get_most_negative_user,
-        plot_minutes_ningredients_nsteps,
-    )
-    from src.preprocessing import (
-        detect_missing_values,
-        detect_duplicates,
-        remove_outliers_nutrition,
-        clean_review,
-        is_negative_sentence,
-        binary_sentiment,
-    )
-    DV_OK = True
-    DV_ERR = None
-except Exception as e:
-    DV_OK = False
-    DV_ERR = e
-
-# Utils & layouts
-from src.streamlit.app.utils import get_ds, render_viz, _safe_rerun
+# Utils & pages
+from src.streamlit.app.utils import get_ds, _safe_rerun
 from src.streamlit.app.layouts.page_data_cleaning import show_data_page
 from src.streamlit.app.layouts.page_visualisation import show_visualizations
 from src.streamlit.app.layouts.page_conclusion import show_conclusion_page
 
 
-# ---------------------- Thème ----------------------
 def set_custom_theme(theme="Clair"):
-    if theme == "Sombre":
-        colors = {
-            "primary": "#ffffff",
-            "secondary": "#f0f0f0",
-            "background": "#181a1b",
-            "text": "#e0e0e0",
-            "header_gradient": "linear-gradient(135deg,#444,#111)",
-            "sidebar_gradient": "linear-gradient(180deg,#333,#111)",
-            "button_text": "#ffffff",
-        }
-    else:
-        colors = {
-            "primary": "#667eea",
-            "secondary": "#764ba2",
-            "background": "#F0F2F6",
-            "text": "#2C3E50",
-            "header_gradient": "linear-gradient(135deg,#667eea,#764ba2)",
-            "sidebar_gradient": "linear-gradient(180deg,#667eea,#764ba2)",
-            "button_text": "#ffffff",
-        }
+    st.set_page_config(page_title="MangeTaMain", page_icon="🍽️", layout="wide")
+    # (thème minimal pour éviter tout souci)
     st.markdown(
-        f"""
+        """
         <style>
-        .stApp {{background:{colors['background']}; color:{colors['text']};}}
-        .main-header {{background:{colors['header_gradient']}; padding:1.4rem; border-radius:14px;
-                       color:{colors['button_text']} !important; text-align:center; margin-bottom:1.0rem;}}
-        [data-testid="stSidebar"] {{background:{colors['sidebar_gradient']};}}
-        [data-testid="stSidebar"] * {{color:#ffffff !important;}}
-        .stButton>button {{
-            background:{colors['header_gradient']}; color:{colors['button_text']} !important;
-            border:none; border-radius:24px; padding:0.55rem 1.3rem; font-weight:600;
-        }}
+        .main-header {padding:1rem; border-radius:12px; text-align:center; background:#667eea; color:white;}
         </style>
         """,
         unsafe_allow_html=True,
     )
 
 
-# ------------------- Page Accueil -------------------
+# ------------------- Page Accueil (TOUT reste DANS la fonction) -------------------
 def show_home_page():
-    # Debug secrets (replié)
+    # (debug secrets replié)
     with st.expander("🔍 Debug secrets", expanded=False):
         try:
-            st.write("Clés présentes :", list(st.secrets.keys()))
-            for k in [
-                "RECIPES_CLEAN_URL", "INTERACTIONS_CLEAN_URL",
-                "RECIPES_RAW_URL", "INTERACTIONS_RAW_URL", "MERGED_CLEAN_URL"
-            ]:
-                ok = (k in st.secrets) and isinstance(st.secrets[k], str) and st.secrets[k].startswith("http")
+            st.write("Clés :", list(st.secrets.keys()))
+            for k in ["RECIPES_CLEAN_URL","INTERACTIONS_CLEAN_URL","RECIPES_RAW_URL","INTERACTIONS_RAW_URL","MERGED_CLEAN_URL"]:
+                ok = k in st.secrets and isinstance(st.secrets[k], str) and st.secrets[k].startswith("http")
                 st.write(k, "→", "OK" if ok else "ABSENT/INVALIDE")
         except Exception as e:
-            st.write("Impossible de lire st.secrets :", e)
+            st.write("st.secrets non lisible :", e)
 
-    # >>> Tout doit rester DANS la fonction <<<
+    # >>> NE RIEN SORTIR EN DEHORS DE CETTE FONCTION <<<
     ds = get_ds()
     recipes_df = ds.get("clean_recipes")
     raw_interactions = ds.get("raw_interactions")
 
     if recipes_df is None or raw_interactions is None:
-        st.error("⚠️ Données indisponibles. Vérifie les secrets (URLs Hugging Face) dans Streamlit Cloud et relance.")
+        st.error("⚠️ Données indisponibles. Vérifie les URLs HF dans Secrets, puis Rerun.")
         st.stop()
 
-    st.markdown("## INTRODUCTION")
-    st.markdown(
-        """Notre équipe (Guy, Mohamed, Leonnel, Omar, Osman) analyse le **taux d'insatisfaction** 
-        à partir des recettes et des interactions (notes/avis). Voici un aperçu :"""
-    )
+    st.markdown('<div class="main-header"><h1>🍽️ MangeTaMain</h1><p>Analyse recettes & interactions</p></div>', unsafe_allow_html=True)
+    st.subheader("Aperçu des données")
     st.dataframe(recipes_df.head(5), use_container_width=True)
-    st.markdown("Aperçu des interactions :")
     st.dataframe(raw_interactions.head(5), use_container_width=True)
-
-    st.markdown(
-        """Étapes :  
-        - **Data cleaning** (structure, NA, outliers)  
-        - **Analyse univariée** (distributions, corrélations)  
-        - **Analyse bivariée** (facteurs d'insatisfaction)  
-        - **Conclusion**
-        """
-    )
 
     st.markdown("### Navigation rapide")
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("📊 Aller à la page data cleaning"):
+        if st.button("📊 Aller à Data cleaning"):
             _set_page_by_key("data"); _safe_rerun()
     with c2:
         if st.button("📈 Aller aux Visualisations"):
             _set_page_by_key("viz"); _safe_rerun()
 
 
+# -------- Navigation --------
 PAGES_ORDER = [
-    ("🏠 Accueil", "home", show_home_page),              # <— passe la fonction, ne l'appelle pas
+    ("🏠 Accueil", "home", show_home_page),          # ← on passe la fonction, on ne l'appelle pas
     ("📊 Données cleaning", "data", show_data_page),
     ("📈 Visualisations", "viz", show_visualizations),
     ("📝 Conclusion", "conclusion", show_conclusion_page),
 ]
 
-
 def _init_page_state():
     if "current_page_idx" not in st.session_state:
         st.session_state.current_page_idx = 0
 
-
 def _go_delta(delta: int):
     st.session_state.current_page_idx = (st.session_state.current_page_idx + delta) % len(PAGES_ORDER)
-
 
 def _set_page_by_key(page_key: str):
     for i, (_, key, _) in enumerate(PAGES_ORDER):
@@ -191,75 +101,46 @@ def _set_page_by_key(page_key: str):
             break
 
 
-# --------------------- Main ---------------------
+# ------------------- Main -------------------
 def main():
-    if logger:
-        logger.info("Initializing Streamlit application main interface")
-
+    if logger: logger.info("Initializing Streamlit main")
     if "data_ready" not in st.session_state:
-        ensure_data()
-        st.session_state.data_ready = True
+        ensure_data(); st.session_state.data_ready = True
 
-    st.set_page_config(page_title="MangeTaMain", page_icon="🍽️", layout="wide")
+    set_custom_theme(st.session_state.get("theme", "Clair"))
     _init_page_state()
 
-    if "theme" not in st.session_state:
-        st.session_state.theme = "Clair"
-    set_custom_theme(st.session_state.theme)
-
-    # Log du chargement datasets
+    # (log de sanity check – ne déclenche pas d'accès global à ds)
     try:
         _ds = get_ds()
         if logger:
-            logger.info("Successfully loaded datasets for main interface")
-            for key, df in _ds.items():
-                logger.debug(f"Dataset '{key}': {getattr(df, 'shape', None) if df is not None else None}")
+            for k, v in _ds.items():
+                if v is not None and hasattr(v, "shape"):
+                    logger.debug(f"Dataset {k} shape={v.shape}")
+                else:
+                    logger.debug(f"Dataset {k} = None")
     except Exception as e:
-        if logger:
-            logger.error(f"Error loading datasets in main: {str(e)}")
-        st.error("Erreur lors du chargement des données")
-        return
+        if logger: logger.error(f"Load datasets failed: {e}")
+        st.error("Erreur chargement des données"); return
 
-    # Bandeau navigation
-    left, center, right = st.columns([0.7, 5, 0.7])
+    # barre de navigation
+    left, center, right = st.columns([1,4,1])
     with left:
-        if st.button("◀"):
-            _go_delta(-1); _safe_rerun()
+        if st.button("◀"): _go_delta(-1); _safe_rerun()
     with center:
         label, key, _ = PAGES_ORDER[st.session_state.current_page_idx]
         st.markdown(f"<h2 style='text-align:center'>{label}</h2>", unsafe_allow_html=True)
     with right:
-        if st.button("▶"):
-            _go_delta(1); _safe_rerun()
+        if st.button("▶"): _go_delta(1); _safe_rerun()
 
     with st.sidebar:
-        st.markdown("### Pages")
-        selected = st.radio("Aller à", [lbl for (lbl, _, _) in PAGES_ORDER], index=st.session_state.current_page_idx)
+        selected = st.radio("Aller à", [lbl for (lbl,_,_) in PAGES_ORDER], index=st.session_state.current_page_idx)
         if PAGES_ORDER[st.session_state.current_page_idx][0] != selected:
             for i, (lbl, key, _) in enumerate(PAGES_ORDER):
                 if lbl == selected:
-                    st.session_state.current_page_idx = i
-                    _safe_rerun()
-                    break
-        st.selectbox(
-            "Thème", ["Clair", "Sombre"],
-            index=["Clair", "Sombre"].index(st.session_state.theme),
-            key="theme_selector",
-            on_change=lambda: st.session_state.update(theme=st.session_state.theme_selector),
-        )
-        if not DV_OK:
-            st.caption(f"⚠️ Module viz: KO ({DV_ERR})")
+                    st.session_state.current_page_idx = i; _safe_rerun(); break
 
-    st.markdown(
-        """
-        <div class="main-header">
-          <h1>🍽️ MangeTaMain</h1>
-          <p>Analyse des recettes et interactions (plots & explications)</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
+    # rendu de la page choisie
     _, _, render = PAGES_ORDER[st.session_state.current_page_idx]
     render()
 
