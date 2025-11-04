@@ -100,7 +100,7 @@ def render_viz(
             if fig is None:
                 st.info("Figure non retournée par la fonction.")
                 return
-            st.pyplot(fig, use_container_width=True)
+            st.pyplot(fig, width="stretch")
 
             if show_doc:
                 import inspect as _inspect

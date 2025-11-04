@@ -66,8 +66,8 @@ def show_home_page():
 
     st.markdown('<div class="main-header"><h1>🍽️ MangeTaMain</h1><p>Analyse recettes & interactions</p></div>', unsafe_allow_html=True)
     st.subheader("Aperçu des données")
-    st.dataframe(recipes_df.head(5), use_container_width=True)
-    st.dataframe(raw_interactions.head(5), use_container_width=True)
+    st.dataframe(recipes_df.head(5), width="stretch")
+    st.dataframe(raw_interactions.head(5), width="stretch")
 
     st.markdown("### Navigation rapide")
     c1, c2 = st.columns(2)
